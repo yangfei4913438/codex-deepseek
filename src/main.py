@@ -62,7 +62,8 @@ def build_chat_body(body: dict) -> dict:
         or (isinstance(body.get("reasoning"), dict) and body["reasoning"].get("effort"))
     )
     result = translate_messages(
-        body.get("input"), {"keepReasoningContent": enable_thinking, "multimodal": MULTIMODAL}
+        body.get("input"),
+        {"keepReasoningContent": enable_thinking, "multimodal": MULTIMODAL},
     )
     messages = result["messages"]
     stats = result["stats"]
@@ -103,7 +104,9 @@ def build_chat_body(body: dict) -> dict:
 
     chat_body: dict = {"model": MODEL, "messages": messages, "stream": stream}
     if IS_DEEPSEEK:
-        chat_body["thinking"] = {"type": "enabled"} if effective_thinking else {"type": "disabled"}
+        chat_body["thinking"] = (
+            {"type": "enabled"} if effective_thinking else {"type": "disabled"}
+        )
 
     tools = translate_tools(body.get("tools"))
     if tools:
@@ -170,10 +173,10 @@ def build_non_stream_response(completion: dict) -> dict:
 
 
 def _deepseek_request(chat_body: dict, stream: bool = False) -> tuple:
-    """Call DeepSeek API via http.client for lower-latency streaming."""
+    """Call the upstream API via http.client."""
     parsed = urlparse(BASE_URL)
     host = parsed.netloc or "api.deepseek.com"
-    path = (parsed.path.rstrip("/") or "") + "/v1/chat/completions"
+    path = parsed.path.rstrip("/") + "/chat/completions"
     body_bytes = json.dumps(chat_body).encode("utf-8")
 
     headers = {
@@ -248,14 +251,14 @@ class ProxyHandler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         path = self.path.split("?")[0]
-        if path in ("/", "/v1", "/health"):
+        if path.endswith("/health"):
             self._json_response({
                 "service": "codex-deepseek",
                 "model": MODEL,
                 "status": "ok",
                 "port": PORT,
             })
-        elif path == "/v1/models":
+        elif path.endswith("/models"):
             self._json_response({
                 "object": "list",
                 "data": [
@@ -272,7 +275,7 @@ class ProxyHandler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         path = self.path.split("?")[0]
-        if path not in ("/v1/responses", "/responses"):
+        if not path.endswith("/responses"):
             self._json_response({"error": {"message": f"not found: {path}"}}, 404)
             return
 
@@ -408,8 +411,10 @@ class ProxyHandler(BaseHTTPRequestHandler):
 def run():
     print("")
     log.ok("codex-deepseek started")
-    log.info(f"http://127.0.0.1:{PORT}/v1/responses")
-    log.info(f"model: {MODEL}  is_deepseek: {'true' if IS_DEEPSEEK else 'false'}  multimodal: {'on' if MULTIMODAL else 'off'}")
+    log.info(f"http://127.0.0.1:{PORT}/responses")
+    log.info(
+        f"model: {MODEL}  is_deepseek: {'true' if IS_DEEPSEEK else 'false'}  multimodal: {'on' if MULTIMODAL else 'off'}"
+    )
     if not DEEPSEEK_API_KEY:
         log.warn("api_key not set")
     print("")

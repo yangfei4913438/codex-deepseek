@@ -59,9 +59,9 @@ Codex (app/cli) ──▶  cc-switch  ──▶  代理 :11435  ──▶  上�
 ```
 
 1. Codex 发送请求到 cc-switch（配置的 provider 端点）
-2. cc-switch 将请求路由到本代理的 `/v1/responses`
+2. cc-switch 将请求路由到本代理的 `/responses`
 3. 代理将 Responses API 的 `input` 列表翻译为 Chat Completions 的 `messages` 数组
-4. 翻译后的请求转发到 `{base_url}/v1/chat/completions`
+4. 翻译后的请求转发到 `{base_url}/chat/completions`
 5. 上游 API 返回的 SSE 流式响应被翻译回 Responses API 事件并返回
 
 ### 协议翻译覆盖
@@ -122,7 +122,7 @@ cc-switch 会管理 Codex 的配置文件（`~/.codex/config.toml` 和 `~/.codex
 | 字段 | 值 |
 |-------|-------|
 | name | `codex-deepseek` |
-| base_url | `http://127.0.0.1:11435/v1` |
+| base_url | `http://127.0.0.1:11435` |
 | wire_api | `responses` |
 | requires_openai_auth | `true` |
 
@@ -135,7 +135,7 @@ model_reasoning_effort = "high"
 
 [model_providers.custom]
 name = "codex-deepseek"
-base_url = "http://127.0.0.1:11435/v1"
+base_url = "http://127.0.0.1:11435"
 wire_api = "responses"
 requires_openai_auth = true
 ```

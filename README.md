@@ -61,9 +61,9 @@ Codex (app or CLI) ──▶  cc-switch  ──▶  proxy :11435  ──▶  Ups
 ```
 
 1. Codex sends a request to cc-switch (its configured provider endpoint)
-2. cc-switch routes the request to this proxy at `/v1/responses`
+2. cc-switch routes the request to this proxy at `/responses`
 3. The proxy translates Responses API `input` items into Chat Completions `messages`
-4. The translated request is forwarded to `{base_url}/v1/chat/completions`
+4. The translated request is forwarded to `{base_url}/chat/completions`
 5. The upstream API's SSE streaming response is translated back into Responses API events and returned
 
 ### Translation coverage
@@ -125,7 +125,7 @@ Fill in these fields when adding the provider:
 | Field | Value |
 |-------|-------|
 | name | `codex-deepseek` |
-| base_url | `http://127.0.0.1:11435/v1` |
+| base_url | `http://127.0.0.1:11435` |
 | wire_api | `responses` |
 | requires_openai_auth | `true` |
 
@@ -138,7 +138,7 @@ model_reasoning_effort = "high"
 
 [model_providers.custom]
 name = "codex-deepseek"
-base_url = "http://127.0.0.1:11435/v1"
+base_url = "http://127.0.0.1:11435"
 wire_api = "responses"
 requires_openai_auth = true
 ```
