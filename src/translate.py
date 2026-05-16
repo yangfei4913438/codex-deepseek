@@ -138,6 +138,10 @@ def translate_messages(input_data: Any, options: Optional[dict] = None) -> dict:
                 for p in item["content"]:
                     t = p.get("type") if isinstance(p, dict) else None
                     if t == "input_image":
+                        keys = list(p.keys())
+                        image_url_len = len(p.get("image_url", "") or "")
+                        source_keys = list(p.get("source", {}).keys()) if isinstance(p.get("source"), dict) else None
+                        log.info(f"image: keys={keys}, image_url_len={image_url_len}, source_keys={source_keys}")
                         skipped_images += 1
                         stats["skipped"]["image"] += 1
                     elif t == "input_file":
