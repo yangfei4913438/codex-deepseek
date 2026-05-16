@@ -1,6 +1,6 @@
 # codex-deepseek
 
-[ccswitch-deepseek](https://github.com/liuzhengming/ccswitch-deepseek) 的 Python 移植版 — 一个协议翻译代理，将 OpenAI Responses API 转换为 DeepSeek Chat Completions API，配合 [cc-switch](https://github.com/farion1231/cc-switch) 让 Codex 可以使用 DeepSeek 模型。
+[ccswitch-deepseek](https://github.com/liuzhengming/ccswitch-deepseek) 的 Python 移植版 — 一个协议翻译代理，将 OpenAI Responses API 转换为 Chat Completions API，配合 [cc-switch](https://github.com/farion1231/cc-switch) 让 Codex 可以使用 DeepSeek 或任何 OpenAI 兼容模型。
 
 零外部依赖 — 仅使用 Python 标准库。
 
@@ -14,7 +14,7 @@
 cp .env.example .env
 ```
 
-编辑 `.env`，填入 DeepSeek API key 和可选配置（见[配置项](#配置项)）。
+编辑 `.env`，填入 API key 和可选配置（见[配置项](#配置项)）。
 
 ### 2. 启动
 
@@ -34,27 +34,35 @@ uv run python -m src.main
 
 | 变量 | 默认值 | 说明 |
 |----------|---------|-------------|
-| `api_key` | — | DeepSeek API 密钥（必填） |
+| `api_key` | — | API 密钥（必填） |
 | `base_url` | `https://api.deepseek.com` | API 基础地址 |
 | `model` | `deepseek-v4-pro` | 模型名称 |
 | `port` | `11435` | 服务监听端口 |
+| `is_deepseek` | `true` | 设为 `false` 如果不是 DeepSeek 模型 |
+| `multimodal` | `false` | 设为 `true` 如果模型支持图片输入 |
+
+## 支持的模型提供商
+
+本代理支持任何提供 **OpenAI 兼容 Chat Completions API** 的模型服务。只需配置对应的 `base_url`、`model` 和 `api_key` 即可。
+
+> **提示：** 部分第三方模型也兼容 DeepSeek 格式的 `thinking` 参数。如果模型支持 `thinking: {type: "enabled"}`，可以保持 `is_deepseek=true`。
 
 ## 工作原理
 
-Codex 使用 **OpenAI Responses API** 协议，DeepSeek 只提供 **Chat Completions API**。
+Codex 使用 **OpenAI Responses API** 协议，大多数 AI 模型提供商只提供 **Chat Completions API**。
 本代理在两者之间做实时的协议转换。
 
 ### 请求链路
 
 ```
-Codex (app/cli) ──▶  cc-switch  ──▶  代理 :11435  ──▶  DeepSeek
+Codex (app/cli) ──▶  cc-switch  ──▶  代理 :11435  ──▶  上游 API
 ```
 
 1. Codex 发送请求到 cc-switch（配置的 provider 端点）
 2. cc-switch 将请求路由到本代理的 `/v1/responses`
 3. 代理将 Responses API 的 `input` 列表翻译为 Chat Completions 的 `messages` 数组
 4. 翻译后的请求转发到 `{base_url}/v1/chat/completions`
-5. DeepSeek 返回的 SSE 流式响应被翻译回 Responses API 事件并返回
+5. 上游 API 返回的 SSE 流式响应被翻译回 Responses API 事件并返回
 
 ### 协议翻译覆盖
 
@@ -70,12 +78,12 @@ Codex (app/cli) ──▶  cc-switch  ──▶  代理 :11435  ──▶  DeepS
 | `input_image` / `input_file` / `input_audio` | 跳过并统计 |
 | `instructions` | 前置 system 消息 |
 | `temperature` / `top_p` / `max_output_tokens` | 透传 |
-| `tools` / `tool_choice` | 翻译为 DeepSeek 格式 |
-| `thinking` / `reasoning` | DeepSeek 思考模式开关 |
+| `tools` / `tool_choice` | 翻译为 Chat Completions 格式 |
+| `thinking` / `reasoning` | 思考模式控制（DeepSeek 格式） |
 
 **输出方向（Chat Completions SSE → Responses SSE）**
 
-| DeepSeek SSE 事件 | Responses API 事件 |
+| Chat Completions SSE 事件 | Responses API 事件 |
 |--------------------|---------------------|
 | 首个 delta | `response.created` + `response.in_progress` |
 | `delta.content` | `response.output_text.delta` / `done` |
@@ -90,7 +98,7 @@ Codex (app/cli) ──▶  cc-switch  ──▶  代理 :11435  ──▶  DeepS
 
 ### 模型身份注入
 
-每次请求前，代理会插入一条 system 消息告知模型它的真实身份是 DeepSeek，
+每次请求前，代理会插入一条 system 消息告知模型它的真实身份，
 防止 Codex 或其他工具注入冲突的身份声明。
 
 ## 配合 [cc-switch](https://github.com/farion1231/cc-switch) 使用
@@ -132,7 +140,7 @@ wire_api = "responses"
 requires_openai_auth = true
 ```
 
-> **注意：** Codex 要求 `~/.codex/auth.json` 中的 `OPENAI_API_KEY` 非空才能通过客户端校验，但实际的 DeepSeek 认证由本代理的 `.env` 处理 — 所以 `auth.json` 中填写任意占位值即可。
+> **注意：** Codex 要求 `~/.codex/auth.json` 中的 `OPENAI_API_KEY` 非空才能通过客户端校验，但实际的上游 API 认证由本代理的 `.env` 处理 — 所以 `auth.json` 中填写任意占位值即可。
 
 **3. 重启终端**使配置生效。
 

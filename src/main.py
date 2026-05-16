@@ -43,6 +43,7 @@ BASE_URL = os.getenv("base_url", "https://api.deepseek.com")
 MODEL = os.getenv("model", "deepseek-v4-pro")
 PORT = int(os.getenv("port", "11435"))
 MULTIMODAL = os.getenv("multimodal", "").lower() in ("true", "1", "yes")
+IS_DEEPSEEK = os.getenv("is_deepseek", "true").lower() in ("true", "1", "yes")
 
 
 def _rand_id(prefix: str, length: int = 8) -> str:
@@ -101,10 +102,8 @@ def build_chat_body(body: dict) -> dict:
     messages.insert(0, {"role": "system", "content": instructions})
 
     chat_body: dict = {"model": MODEL, "messages": messages, "stream": stream}
-    if effective_thinking:
-        chat_body["thinking"] = {"type": "enabled"}
-    else:
-        chat_body["thinking"] = {"type": "disabled"}
+    if IS_DEEPSEEK:
+        chat_body["thinking"] = {"type": "enabled"} if effective_thinking else {"type": "disabled"}
 
     tools = translate_tools(body.get("tools"))
     if tools:
@@ -264,7 +263,7 @@ class ProxyHandler(BaseHTTPRequestHandler):
                         "id": MODEL,
                         "object": "model",
                         "created": 1700000000,
-                        "owned_by": "deepseek",
+                        "owned_by": "deepseek" if IS_DEEPSEEK else "openai",
                     }
                 ],
             })
@@ -303,13 +302,13 @@ class ProxyHandler(BaseHTTPRequestHandler):
     def _handle_non_stream(self, body: dict, chat_body: dict) -> None:
         status, resp_body, conn = _deepseek_request(chat_body)
         if status != 200:
-            log.err(f"DeepSeek {status}: {resp_body[:300]}")
+            log.err(f"Upstream {status}: {resp_body[:300]}")
             self._json_response(
                 {
                     "error": {
                         "type": "upstream_error",
-                        "code": f"deepseek_{status}",
-                        "message": f"DeepSeek {status}: {resp_body[:200]}",
+                        "code": f"upstream_{status}",
+                        "message": f"Upstream {status}: {resp_body[:200]}",
                     }
                 },
                 502 if status and status >= 500 else status or 502,
@@ -346,8 +345,8 @@ class ProxyHandler(BaseHTTPRequestHandler):
                 status, resp, conn = _deepseek_request(chat_body, stream=True)
                 if status != 200 or isinstance(resp, str):
                     err_body = resp if isinstance(resp, str) else resp[:300]
-                    log.err(f"DeepSeek {status}: {err_body}")
-                    yield translator.error(f"DeepSeek {status}: {err_body[:200]}")
+                    log.err(f"Upstream {status}: {err_body}")
+                    yield translator.error(f"Upstream {status}: {err_body[:200]}")
                     return
                 # Read in 4KB chunks for lower latency than line-by-line
                 buf = ""
@@ -410,7 +409,7 @@ def run():
     print("")
     log.ok("codex-deepseek started")
     log.info(f"http://127.0.0.1:{PORT}/v1/responses")
-    log.info(f"model: {MODEL}")
+    log.info(f"model: {MODEL}  is_deepseek: {'true' if IS_DEEPSEEK else 'false'}  multimodal: {'on' if MULTIMODAL else 'off'}")
     if not DEEPSEEK_API_KEY:
         log.warn("api_key not set")
     print("")

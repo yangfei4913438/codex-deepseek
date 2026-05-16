@@ -2,7 +2,7 @@
 
 [中文](README.zh-CN.md)
 
-Python port of [ccswitch-deepseek](https://github.com/liuzhengming/ccswitch-deepseek) — a protocol translation proxy that converts OpenAI Responses API to DeepSeek Chat Completions API, enabling Codex to use DeepSeek models via [cc-switch](https://github.com/farion1231/cc-switch).
+Python port of [ccswitch-deepseek](https://github.com/liuzhengming/ccswitch-deepseek) — a protocol translation proxy that converts OpenAI Responses API to Chat Completions API, enabling Codex to use DeepSeek or any OpenAI-compatible model via [cc-switch](https://github.com/farion1231/cc-switch).
 
 Zero external dependencies — Python standard library only.
 
@@ -16,7 +16,7 @@ Thanks to the original [ccswitch-deepseek](https://github.com/liuzhengming/ccswi
 cp .env.example .env
 ```
 
-Edit `.env` with your DeepSeek API key and optional settings (see [Configuration](#configuration)).
+Edit `.env` with your API key and optional settings (see [Configuration](#configuration)).
 
 ### 2. Start
 
@@ -36,27 +36,35 @@ The proxy listens at `http://127.0.0.1:11435`.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `api_key` | — | DeepSeek API key (required) |
+| `api_key` | — | API key (required) |
 | `base_url` | `https://api.deepseek.com` | API base URL |
 | `model` | `deepseek-v4-pro` | Model name |
 | `port` | `11435` | Server listen port |
+| `is_deepseek` | `true` | Set to `false` if not using a DeepSeek model |
+| `multimodal` | `false` | Set to `true` if the model supports image inputs |
+
+## Supported Providers
+
+This proxy works with any model provider that offers an **OpenAI-compatible Chat Completions API**. Just configure `base_url`, `model`, and `api_key` accordingly.
+
+> **Tip:** Some third-party model providers also support the DeepSeek-format `thinking` parameter. If the model recognizes `thinking: {type: "enabled"}`, you can keep `is_deepseek=true`.
 
 ## How It Works
 
-Codex speaks **OpenAI Responses API**. DeepSeek speaks **Chat Completions API**.
+Codex speaks **OpenAI Responses API**. Most AI model providers speak **Chat Completions API**.
 This proxy translates between the two protocols in real time.
 
 ### Request chain
 
 ```
-Codex (app or CLI) ──▶  cc-switch  ──▶  proxy :11435  ──▶  DeepSeek
+Codex (app or CLI) ──▶  cc-switch  ──▶  proxy :11435  ──▶  Upstream API
 ```
 
 1. Codex sends a request to cc-switch (its configured provider endpoint)
 2. cc-switch routes the request to this proxy at `/v1/responses`
 3. The proxy translates Responses API `input` items into Chat Completions `messages`
 4. The translated request is forwarded to `{base_url}/v1/chat/completions`
-5. DeepSeek's SSE streaming response is translated back into Responses API events and returned
+5. The upstream API's SSE streaming response is translated back into Responses API events and returned
 
 ### Translation coverage
 
@@ -72,12 +80,12 @@ Codex (app or CLI) ──▶  cc-switch  ──▶  proxy :11435  ──▶  Dee
 | `input_image` / `input_file` / `input_audio` | skipped with stats |
 | `instructions` | prepended system message |
 | `temperature` / `top_p` / `max_output_tokens` | passthrough |
-| `tools` / `tool_choice` | translated to DeepSeek format |
-| `thinking` / `reasoning` | DeepSeek thinking mode on/off |
+| `tools` / `tool_choice` | translated to Chat Completions format |
+| `thinking` / `reasoning` | thinking mode control (DeepSeek format) |
 
 **Output (Chat Completions SSE → Responses SSE)**
 
-| DeepSeek SSE event | Responses API event |
+| Chat Completions SSE event | Responses API event |
 |--------------------|---------------------|
 | first delta | `response.created` + `response.in_progress` |
 | `delta.content` | `response.output_text.delta` / `done` |
@@ -93,7 +101,7 @@ so the reasoning chain stays intact across function calls.
 
 ### Identity injection
 
-A system message is prepended to every request telling the model it is DeepSeek,
+A system message is prepended to every request telling the model its true identity,
 preventing conflicting identity claims from Codex or other tools.
 
 ## Integration with [cc-switch](https://github.com/farion1231/cc-switch)
@@ -135,7 +143,7 @@ wire_api = "responses"
 requires_openai_auth = true
 ```
 
-> **Note:** Codex requires a non-empty `OPENAI_API_KEY` in `~/.codex/auth.json` to pass its client-side check, but the actual DeepSeek authentication is handled by this proxy's own `.env` — so any placeholder value works in `auth.json`.
+> **Note:** Codex requires a non-empty `OPENAI_API_KEY` in `~/.codex/auth.json` to pass its client-side check, but the actual upstream authentication is handled by this proxy's own `.env` — so any placeholder value works in `auth.json`.
 
 **3. Restart your terminal** for changes to take effect.
 

@@ -1,6 +1,6 @@
 [project]
 name = "codex-deepseek"
 version = "1.0.0"
-description = "Protocol translation proxy — converts OpenAI Responses API to DeepSeek Chat Completions API, enabling Codex to use DeepSeek models via cc-switch."
+description = "Protocol translation proxy — converts OpenAI Responses API to Chat Completions API, enabling Codex to use DeepSeek or any OpenAI-compatible model via cc-switch."
 readme = "README.md"
 requires-python = ">=3.9"
