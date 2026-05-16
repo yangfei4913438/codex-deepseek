@@ -42,6 +42,7 @@ DEEPSEEK_API_KEY = os.getenv("api_key", "")
 BASE_URL = os.getenv("base_url", "https://api.deepseek.com")
 MODEL = os.getenv("model", "deepseek-v4-pro")
 PORT = int(os.getenv("port", "11435"))
+MULTIMODAL = os.getenv("multimodal", "").lower() in ("true", "1", "yes")
 
 
 def _rand_id(prefix: str, length: int = 8) -> str:
@@ -60,7 +61,7 @@ def build_chat_body(body: dict) -> dict:
         or (isinstance(body.get("reasoning"), dict) and body["reasoning"].get("effort"))
     )
     result = translate_messages(
-        body.get("input"), {"keepReasoningContent": enable_thinking}
+        body.get("input"), {"keepReasoningContent": enable_thinking, "multimodal": MULTIMODAL}
     )
     messages = result["messages"]
     stats = result["stats"]

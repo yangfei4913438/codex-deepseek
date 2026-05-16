@@ -24,9 +24,38 @@ def extract_text(content: Any) -> str:
     )
 
 
+def _convert_image_url(part: dict) -> Optional[dict]:
+    image_url = part.get("image_url")
+    if image_url and isinstance(image_url, str):
+        return {"type": "image_url", "image_url": {"url": image_url}}
+    source = part.get("source")
+    if isinstance(source, dict) and source.get("type") == "base64":
+        mt = source.get("media_type", "image/jpeg")
+        return {"type": "image_url", "image_url": {"url": f"data:{mt};base64,{source.get('data', '')}"}}
+    return None
+
+
+def _build_content_parts(content_list: list) -> list[dict]:
+    parts: list[dict] = []
+    for p in content_list:
+        if not isinstance(p, dict):
+            continue
+        t = p.get("type")
+        if t in ("input_text", "output_text", "text", "reasoning_text"):
+            text = p.get("text", "")
+            if text:
+                parts.append({"type": "text", "text": text})
+        elif t == "input_image":
+            img = _convert_image_url(p)
+            if img:
+                parts.append(img)
+    return parts
+
+
 def translate_messages(input_data: Any, options: Optional[dict] = None) -> dict:
     options = options or {}
     keep_reasoning_content = options.get("keepReasoningContent", False)
+    multimodal = options.get("multimodal", False)
     messages: list[dict] = []
     stats = {
         "skipped": {"reasoning": 0, "image": 0, "file": 0, "audio": 0, "other": 0},
@@ -102,8 +131,9 @@ def translate_messages(input_data: Any, options: Optional[dict] = None) -> dict:
             role = "system" if item["role"] == "developer" else item["role"]
             text_content = extract_text(item.get("content"))
 
-            # Track skipped content types and inject hints
+            # Track skipped content and handle images
             skipped_images = 0
+            content_parts = None
             if isinstance(item.get("content"), list):
                 for p in item["content"]:
                     t = p.get("type") if isinstance(p, dict) else None
@@ -114,15 +144,23 @@ def translate_messages(input_data: Any, options: Optional[dict] = None) -> dict:
                         stats["skipped"]["file"] += 1
                     elif t == "input_audio":
                         stats["skipped"]["audio"] += 1
+                if multimodal and skipped_images > 0:
+                    content_parts = _build_content_parts(item["content"])
 
-            if skipped_images > 0 and role == "user" and text_content:
-                hint = "image" if skipped_images == 1 else f"{skipped_images} images"
-                log.warn(f"{hint} skipped, model does not support vision input")
-                text_content += f"\n\n[Note: The user attached {hint} which could not be displayed. Do NOT describe or speculate about the image content — just let the user know you cannot view images and ask them to describe it in text if needed.]"
-            elif not text_content and skipped_images > 0:
-                log.warn("image-only message skipped, model does not support vision input")
-
-            if text_content:
+            if multimodal and content_parts:
+                msg: dict = {"role": role, "content": content_parts}
+                if item.get("reasoning_content"):
+                    msg["reasoning_content"] = item["reasoning_content"]
+                if item.get("tool_calls"):
+                    msg["tool_calls"] = item["tool_calls"]
+                if item.get("tool_call_id"):
+                    msg["tool_call_id"] = item["tool_call_id"]
+                messages.append(msg)
+            elif text_content:
+                if skipped_images > 0 and role == "user":
+                    hint = "image" if skipped_images == 1 else f"{skipped_images} images"
+                    log.warn(f"{hint} skipped, multimodal mode is off")
+                    text_content += f"\n\n[Note: The user attached {hint} which could not be displayed. Do NOT describe or speculate about the image content — just let the user know you cannot view images and ask them to describe it in text if needed.]"
                 msg: dict = {"role": role, "content": text_content}
                 if item.get("reasoning_content"):
                     msg["reasoning_content"] = item["reasoning_content"]
@@ -131,6 +169,8 @@ def translate_messages(input_data: Any, options: Optional[dict] = None) -> dict:
                 if item.get("tool_call_id"):
                     msg["tool_call_id"] = item["tool_call_id"]
                 messages.append(msg)
+            elif skipped_images > 0:
+                log.warn("image-only message skipped, multimodal mode is off")
 
             continue
 
