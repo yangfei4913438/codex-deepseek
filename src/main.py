@@ -351,15 +351,16 @@ class ProxyHandler(BaseHTTPRequestHandler):
                     log.err(f"Upstream {status}: {err_body}")
                     yield translator.error(f"Upstream {status}: {err_body[:200]}")
                     return
-                # Read in 4KB chunks for lower latency than line-by-line
-                buf = ""
+                # Read in 4KB chunks; buffer as bytes to avoid splitting multi-byte UTF-8 chars
+                buf = b""
                 while True:
                     chunk = resp.read(4096)
                     if not chunk:
                         break
-                    buf += chunk.decode("utf-8")
-                    while "\n" in buf:
-                        line, buf = buf.split("\n", 1)
+                    buf += chunk
+                    while b"\n" in buf:
+                        line_bytes, buf = buf.split(b"\n", 1)
+                        line = line_bytes.decode("utf-8")
                         if not line.startswith("data: "):
                             continue
                         json_str = line[6:].strip()
@@ -373,7 +374,10 @@ class ProxyHandler(BaseHTTPRequestHandler):
                         except (json.JSONDecodeError, ValueError):
                             pass
                 # Flush remaining buffer
-                for line in buf.split("\n"):
+                for line_bytes in buf.split(b"\n"):
+                    if not line_bytes:
+                        continue
+                    line = line_bytes.decode("utf-8")
                     if not line.startswith("data: "):
                         continue
                     json_str = line[6:].strip()
