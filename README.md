@@ -40,6 +40,7 @@ The proxy listens at `http://127.0.0.1:11435`.
 | `base_url` | `https://api.deepseek.com` | API base URL |
 | `model` | `deepseek-v4-pro` | Model name |
 | `port` | `11435` | Server listen port |
+| `timeout` | `30` | Upstream API timeout in minutes |
 | `is_deepseek` | `true` | Set to `false` if not using a DeepSeek model |
 | `multimodal` | `false` | Set to `true` if the model supports image inputs |
 

@@ -42,6 +42,7 @@ DEEPSEEK_API_KEY = os.getenv("api_key", "")
 BASE_URL = os.getenv("base_url", "https://api.deepseek.com")
 MODEL = os.getenv("model", "deepseek-v4-pro")
 PORT = int(os.getenv("port", "11435"))
+TIMEOUT = int(os.getenv("timeout", "30")) * 60
 MULTIMODAL = os.getenv("multimodal", "").lower() in ("true", "1", "yes")
 IS_DEEPSEEK = os.getenv("is_deepseek", "true").lower() in ("true", "1", "yes")
 
@@ -185,7 +186,7 @@ def _deepseek_request(chat_body: dict, stream: bool = False) -> tuple:
         "Accept": "text/event-stream" if stream else "application/json",
     }
 
-    conn = HTTPSConnection(host, timeout=300)
+    conn = HTTPSConnection(host, timeout=TIMEOUT)
     try:
         conn.request("POST", path, body=body_bytes, headers=headers)
         resp = conn.getresponse()

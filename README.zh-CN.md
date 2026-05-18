@@ -38,6 +38,7 @@ uv run python -m src.main
 | `base_url` | `https://api.deepseek.com` | API 基础地址 |
 | `model` | `deepseek-v4-pro` | 模型名称 |
 | `port` | `11435` | 服务监听端口 |
+| `timeout` | `30` | 上游 API 超时时间（分钟） |
 | `is_deepseek` | `true` | 设为 `false` 如果不是 DeepSeek 模型 |
 | `multimodal` | `false` | 设为 `true` 如果模型支持图片输入 |
 
