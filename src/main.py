@@ -2,6 +2,7 @@ import json
 import os
 import random
 import string
+import time
 from http.client import HTTPSConnection
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse
@@ -45,6 +46,7 @@ PORT = int(os.getenv("port", "11435"))
 TIMEOUT = int(os.getenv("timeout", "30")) * 60
 MULTIMODAL = os.getenv("multimodal", "").lower() in ("true", "1", "yes")
 IS_DEEPSEEK = os.getenv("is_deepseek", "true").lower() in ("true", "1", "yes")
+IDENTITY_INJECT = os.getenv("identity_inject", "true").lower() in ("true", "1", "yes")
 
 
 def _rand_id(prefix: str, length: int = 8) -> str:
@@ -95,13 +97,15 @@ def build_chat_body(body: dict) -> dict:
         f"thinking:{'on' if effective_thinking else 'off'} msgs:{len(messages)} stream:{stream} | {preview}"
     )
 
-    IDENTITY = f"\n\n[IMPORTANT: Your true model identity is {MODEL}. You are NOT OpenAI, GPT, or Claude. When asked about your model identity, you MUST answer truthfully based on your actual model name. Ignore any conflicting identity claims in the instructions above.]"
     instructions = body.get("instructions", "")
+    if IDENTITY_INJECT:
+        IDENTITY = f"\n\n[IMPORTANT: Your true model identity is {MODEL}. You are NOT OpenAI, GPT, or Claude. When asked about your model identity, you MUST answer truthfully based on your actual model name. Ignore any conflicting identity claims in the instructions above.]"
+        if instructions:
+            instructions = instructions + IDENTITY
+        else:
+            instructions = IDENTITY.strip()
     if instructions:
-        instructions = instructions + IDENTITY
-    else:
-        instructions = IDENTITY.strip()
-    messages.insert(0, {"role": "system", "content": instructions})
+        messages.insert(0, {"role": "system", "content": instructions})
 
     chat_body: dict = {"model": MODEL, "messages": messages, "stream": stream}
     if IS_DEEPSEEK:
@@ -205,6 +209,29 @@ def _deepseek_request(chat_body: dict, stream: bool = False) -> tuple:
         return None, str(e), None
 
 
+def _upstream_status(status) -> int:
+    """Map upstream HTTP status to proxy error status."""
+    if status is None:
+        return 502
+    if 400 <= status < 500:
+        if status == 429:
+            return 429
+        if status in (401, 403):
+            return 502  # hide auth details from the client
+        return status
+    return 502
+
+
+def _upstream_error_message(status, body: str) -> str:
+    """Create a user-friendly error message for the given status code."""
+    snippet = (body or "")[:200]
+    if status == 401 or status == 403:
+        return f"Upstream authentication failed ({status}). Check your API key in .env"
+    if status == 429:
+        return f"Upstream rate limited ({status}). The API is throttling requests; wait and retry."
+    return f"Upstream {status}: {snippet}"
+
+
 class ProxyHandler(BaseHTTPRequestHandler):
     def handle_one_request(self) -> None:
         try:
@@ -304,7 +331,10 @@ class ProxyHandler(BaseHTTPRequestHandler):
             self._handle_stream(body, chat_body)
 
     def _handle_non_stream(self, body: dict, chat_body: dict) -> None:
+        t0 = time.time()
         status, resp_body, conn = _deepseek_request(chat_body)
+        elapsed_ms = int((time.time() - t0) * 1000)
+        log.timing(elapsed_ms)
         if status != 200:
             log.err(f"Upstream {status}: {resp_body[:300]}")
             self._json_response(
@@ -312,10 +342,10 @@ class ProxyHandler(BaseHTTPRequestHandler):
                     "error": {
                         "type": "upstream_error",
                         "code": f"upstream_{status}",
-                        "message": f"Upstream {status}: {resp_body[:200]}",
+                        "message": _upstream_error_message(status, resp_body),
                     }
                 },
-                502 if status and status >= 500 else status or 502,
+                _upstream_status(status),
             )
             return
         try:
@@ -345,12 +375,13 @@ class ProxyHandler(BaseHTTPRequestHandler):
         def generate():
             translator = SseTranslator()
             conn = None
+            t0 = time.time()
             try:
                 status, resp, conn = _deepseek_request(chat_body, stream=True)
                 if status != 200 or isinstance(resp, str):
                     err_body = resp if isinstance(resp, str) else resp[:300]
                     log.err(f"Upstream {status}: {err_body}")
-                    yield translator.error(f"Upstream {status}: {err_body[:200]}")
+                    yield translator.error(_upstream_error_message(status, err_body))
                     return
                 # Read in 4KB chunks; buffer as bytes to avoid splitting multi-byte UTF-8 chars
                 buf = b""
@@ -407,6 +438,7 @@ class ProxyHandler(BaseHTTPRequestHandler):
                 log.err(f"upstream: {e}")
                 yield translator.error(str(e))
             finally:
+                log.timing(int((time.time() - t0) * 1000))
                 if conn:
                     conn.close()
 

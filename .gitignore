@@ -1,4 +1,5 @@
 .env
+deploy.sh
 __pycache__/
 *.pyc
 .venv/
