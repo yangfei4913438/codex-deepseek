@@ -215,7 +215,7 @@ stream_idle_timeout_ms = 1800000   # 30 minutes
 
 ### Startup prints recommended config
 
-The proxy prints recommended config.toml additions to stderr on startup. You can copy them directly.
+The proxy detects missing configuration on startup and prints only what needs to be added.
 
 
 ## License

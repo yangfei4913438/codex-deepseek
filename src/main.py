@@ -448,50 +448,56 @@ class ProxyHandler(BaseHTTPRequestHandler):
 def _write_catalog_json():
     """Write a ready-to-use model catalog JSON so Codex recognizes MODEL."""
     import os as _os
+
     catalog = {
-        "models": [{
-            "slug": MODEL,
-            "display_name": f"DeepSeek {MODEL}" if IS_DEEPSEEK else MODEL,
-            "description": f"{MODEL} via codex-deepseek proxy",
-            "visibility": "list",
-            "supported_in_api": True,
-            "priority": 10,
-            "context_window": 262144,
-            "max_context_window": 1048576,
-            "effective_context_window_percent": 95,
-            "auto_compact_token_limit": 196608,
-            "max_completion_tokens": 32768,
-            "input_modalities": ["text"],
-            "output_modalities": ["text"],
-            "supports_image_detail_original": False,
-            "supports_parallel_tool_calls": True,
-            "supports_search_tool": False,
-            "web_search_tool_type": "text_and_image",
-            "apply_patch_tool_type": "freeform",
-            "shell_type": "shell_command",
-            "supports_reasoning_summaries": False,
-            "default_reasoning_summary": "none",
-            "default_reasoning_level": "high",
-            "supported_reasoning_levels": [
-                {"effort": "low", "description": "Fast responses"},
-                {"effort": "medium", "description": "Balanced speed and depth"},
-                {"effort": "high", "description": "Deep reasoning for complex problems"}
-            ],
-            "support_verbosity": False,
-            "default_verbosity": "medium",
-            "truncation_policy": {"mode": "tokens", "limit": 10000},
-            "base_instructions": f"You are a coding agent powered by {MODEL}.",
-            "cost": {"input": 0, "output": 0},
-            "release_date": "2025-01-01",
-            "last_updated": "2025-01-01",
-            "structured_output": False,
-            "open_weights": False,
-            "attachment": False,
-            "experimental_supported_tools": [],
-            "additional_speed_tiers": [],
-            "availability_nux": None,
-            "upgrade": None
-        }]
+        "models": [
+            {
+                "slug": MODEL,
+                "display_name": f"DeepSeek {MODEL}" if IS_DEEPSEEK else MODEL,
+                "description": f"{MODEL} via codex-deepseek proxy",
+                "visibility": "list",
+                "supported_in_api": True,
+                "priority": 10,
+                "context_window": 262144,
+                "max_context_window": 1048576,
+                "effective_context_window_percent": 95,
+                "auto_compact_token_limit": 196608,
+                "max_completion_tokens": 32768,
+                "input_modalities": ["text"],
+                "output_modalities": ["text"],
+                "supports_image_detail_original": False,
+                "supports_parallel_tool_calls": True,
+                "supports_search_tool": False,
+                "web_search_tool_type": "text_and_image",
+                "apply_patch_tool_type": "freeform",
+                "shell_type": "shell_command",
+                "supports_reasoning_summaries": False,
+                "default_reasoning_summary": "none",
+                "default_reasoning_level": "high",
+                "supported_reasoning_levels": [
+                    {"effort": "low", "description": "Fast responses"},
+                    {"effort": "medium", "description": "Balanced speed and depth"},
+                    {
+                        "effort": "high",
+                        "description": "Deep reasoning for complex problems",
+                    },
+                ],
+                "support_verbosity": False,
+                "default_verbosity": "medium",
+                "truncation_policy": {"mode": "tokens", "limit": 10000},
+                "base_instructions": f"You are a coding agent powered by {MODEL}.",
+                "cost": {"input": 0, "output": 0},
+                "release_date": "2025-01-01",
+                "last_updated": "2025-01-01",
+                "structured_output": False,
+                "open_weights": False,
+                "attachment": False,
+                "experimental_supported_tools": [],
+                "additional_speed_tiers": [],
+                "availability_nux": None,
+                "upgrade": None,
+            }
+        ]
     }
     root = _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))
     path = _os.path.join(root, "codex-deepseek-catalog.json")
@@ -500,8 +506,49 @@ def _write_catalog_json():
     return path
 
 
+def _check_onboarding():
+    """Check what onboarding items are still missing.
+    Returns (catalog_ok: bool, missing_root: set, missing_custom: set)."""
+    import os as _os
+
+    catalog_path = _os.path.expanduser("~/.codex/model-catalogs/deepseek.json")
+    catalog_ok = _os.path.isfile(catalog_path)
+
+    config_path = _os.path.expanduser("~/.codex/config.toml")
+    required_root = {
+        "model_catalog_json",
+        "model_context_window",
+        "model_supports_reasoning_summaries",
+        "model_reasoning_summary",
+    }
+    required_custom = {"stream_idle_timeout_ms"}
+    found_root = set()
+    found_custom = set()
+    section = ""
+
+    try:
+        with open(config_path) as f:
+            for line in f:
+                stripped = line.strip()
+                if not stripped or stripped.startswith("#"):
+                    continue
+                if stripped.startswith("[") and stripped.endswith("]"):
+                    section = stripped[1:-1].strip()
+                    continue
+                if "=" in stripped:
+                    key = stripped.split("=")[0].strip()
+                    if section == "" and key in required_root:
+                        found_root.add(key)
+                    elif section == "model_providers.custom" and key in required_custom:
+                        found_custom.add(key)
+    except (FileNotFoundError, PermissionError):
+        return (catalog_ok, required_root, required_custom)
+
+    return (catalog_ok, required_root - found_root, required_custom - found_custom)
+
+
 def run():
-    print("")
+    log.info("")
     log.ok("codex-deepseek started")
     log.info(f"http://127.0.0.1:{PORT}/responses")
     log.info(
@@ -509,20 +556,51 @@ def run():
     )
     if not DEEPSEEK_API_KEY:
         log.warn("api_key not set")
-    _write_catalog_json()
-    log.info("Recommended ~/.codex/config.toml additions:")
-    log.info(f"  model_context_window = 262144")
-    log.info(f"  model_supports_reasoning_summaries = true")
-    log.info(f"  model_reasoning_summary = \"none\"")
-    log.info(f"")
-    log.info(f"  [model_providers.custom]")
-    log.info(f"  stream_idle_timeout_ms = 1800000")
-    log.info(f"")
-    log.info(f"  model_catalog_json = \"/path/to/codex-deepseek-catalog.json\"")
-    log.info(f"  → A ready-to-use catalog for \"{MODEL}\" has been written to")
-    log.info(f"    {os.path.dirname(os.path.dirname(os.path.abspath(__file__)))}/codex-deepseek-catalog.json")
-    log.info(f"  → Copy it to ~/.codex/model-catalogs/ and update the path above.")
-    print("")
+    catalog_ok, missing_root, missing_custom = _check_onboarding()
+    if not catalog_ok or missing_root or missing_custom:
+        log.info("")
+        log.header("Missing configuration detected")
+    if not catalog_ok:
+        _write_catalog_json()
+        log.info(
+            f'Model metadata not found: Codex does not recognize "{MODEL}" by default.'
+        )
+        log.info(f'A catalog file for "{MODEL}" has been written to:')
+        log.info(
+            f"  {os.path.dirname(os.path.dirname(os.path.abspath(__file__)))}/codex-deepseek-catalog.json"
+        )
+        log.info("To fix:")
+        log.info("  1) mkdir -p ~/.codex/model-catalogs")
+        log.info(
+            "  2) cp codex-deepseek-catalog.json ~/.codex/model-catalogs/deepseek.json"
+        )
+        log.info("  3) Add to ~/.codex/config.toml (root level, not inside provider):")
+        log.info('       model_catalog_json = "~/.codex/model-catalogs/deepseek.json"')
+        log.info("")
+    if "model_catalog_json" in missing_root and catalog_ok:
+        log.info("Model catalog file exists, but config.toml is not updated.")
+        log.info("  Add to ~/.codex/config.toml (root level):")
+        log.info('    model_catalog_json = "~/.codex/model-catalogs/deepseek.json"')
+        log.info("")
+    root_items = []
+    if "model_context_window" in missing_root:
+        root_items.append("model_context_window = 262144")
+    if "model_supports_reasoning_summaries" in missing_root:
+        root_items.append("model_supports_reasoning_summaries = true")
+    if "model_reasoning_summary" in missing_root:
+        root_items.append('model_reasoning_summary = "none"')
+    if root_items:
+        log.info("Missing performance / reasoning settings in ~/.codex/config.toml:")
+        for item in root_items:
+            log.info("  " + item)
+        log.info("")
+    if missing_custom:
+        log.info("Missing provider-level setting in ~/.codex/config.toml:")
+        log.info("  [model_providers.custom]")
+        log.info(
+            "  stream_idle_timeout_ms = 1800000  # prevent disconnect during long thinking"
+        )
+        log.info("")
     server = ThreadingHTTPServer(("127.0.0.1", PORT), ProxyHandler)
     try:
         server.serve_forever()
