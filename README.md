@@ -43,6 +43,7 @@ The proxy listens at `http://127.0.0.1:11435`.
 | `timeout` | `30` | Upstream API timeout in minutes |
 | `is_deepseek` | `true` | Set to `false` if not using a DeepSeek model |
 | `multimodal` | `false` | Set to `true` if the model supports image inputs |
+| `identity_inject` | `true` | Set to `false` to skip model identity injection |
 
 ## Supported Providers
 
@@ -104,6 +105,7 @@ so the reasoning chain stays intact across function calls.
 
 A system message is prepended to every request telling the model its true identity,
 preventing conflicting identity claims from Codex or other tools.
+Set `identity_inject=false` in `.env` to disable this behavior.
 
 ## Integration with [cc-switch](https://github.com/farion1231/cc-switch)
 
@@ -136,13 +138,28 @@ The resulting `~/.codex/config.toml` will look like:
 model_provider = "custom"
 model = "deepseek-v4-pro"
 model_reasoning_effort = "high"
+model_context_window = 262144
+model_supports_reasoning_summaries = true
+model_reasoning_summary = "none"
+model_catalog_json = "~/.codex/model-catalogs/deepseek.json"
 
 [model_providers.custom]
 name = "codex-deepseek"
 base_url = "http://127.0.0.1:11435"
 wire_api = "responses"
 requires_openai_auth = true
+stream_idle_timeout_ms = 1800000
 ```
+
+| New Field | Description |
+|-----------|-------------|
+| `model_context_window` | Informs Codex of context window size for correct compaction |
+| `model_supports_reasoning_summaries` | Declares the model supports reasoning |
+| `model_reasoning_summary = "none"` | DeepSeek returns reasoning_content natively; no extra summary needed |
+| `stream_idle_timeout_ms` | 30-minute stream idle timeout, prevents Codex from disconnecting during DeepSeek V4 long thinking |
+| `model_catalog_json` | Points to a model catalog JSON to fix "model metadata not found" warnings |
+
+> **Note:** The proxy auto-generates `codex-deepseek-catalog.json` on startup. Copy it to `~/.codex/model-catalogs/` and configure the `model_catalog_json` path.
 
 > **Note:** Codex requires a non-empty `OPENAI_API_KEY` in `~/.codex/auth.json` to pass its client-side check, but the actual upstream authentication is handled by this proxy's own `.env` — so any placeholder value works in `auth.json`.
 
@@ -165,6 +182,41 @@ requires_openai_auth = true
 ./start.sh   # Start the proxy server
 ./test.sh    # Run unit tests
 ```
+
+## Troubleshooting
+
+### "Model metadata not found" warning
+
+Codex's built-in model registry lacks DeepSeek model info. Create a model catalog JSON and reference it in config.toml.
+
+**Step 1:** The proxy auto-generates `codex-deepseek-catalog.json` on startup. Copy it to your Codex directory:
+
+```bash
+mkdir -p ~/.codex/model-catalogs
+cp codex-deepseek-catalog.json ~/.codex/model-catalogs/deepseek.json
+```
+
+**Step 2:** Add to the root level of `~/.codex/config.toml` (not inside the provider section):
+
+```toml
+model_catalog_json = "~/.codex/model-catalogs/deepseek.json"
+```
+
+> **Important:** `model_catalog_json` must be at the root level of config.toml, not inside `[model_providers.xxx]`. `[model_properties]` does not work in Codex 0.141+.
+
+### Stream disconnection (DeepSeek V4 long thinking)
+
+DeepSeek V4 may produce no output for extended periods during reasoning. Codex's default stream idle timeout can cause disconnections. Add to the provider config:
+
+```toml
+[model_providers.custom]
+stream_idle_timeout_ms = 1800000   # 30 minutes
+```
+
+### Startup prints recommended config
+
+The proxy prints recommended config.toml additions to stderr on startup. You can copy them directly.
+
 
 ## License
 
