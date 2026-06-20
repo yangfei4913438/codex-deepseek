@@ -30,7 +30,7 @@ def err(msg: str, *args) -> None:
 
 
 def req(msg: str, *args) -> None:
-    print(f"{C['magenta']}[REQ ]{C['reset']} {msg}", *args, file=sys.stderr)
+    print(f"\n{C['magenta']}[REQ ]{C['reset']} {msg}", *args, file=sys.stderr)
 
 
 def resp(msg: str, *args) -> None:
