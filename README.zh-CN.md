@@ -127,19 +127,34 @@ cc-switch 会管理 Codex 的配置文件（`~/.codex/config.toml` 和 `~/.codex
 | wire_api | `responses` |
 | requires_openai_auth | `true` |
 
-生成的 `~/.codex/config.toml` 内容如下：
+生成的 `~/.codex/config.toml` 内容如下（推荐补全性能参数和模型元数据）：
 
 ```toml
 model_provider = "custom"
 model = "deepseek-v4-pro"
 model_reasoning_effort = "high"
+model_context_window = 262144
+model_supports_reasoning_summaries = true
+model_reasoning_summary = "none"
+model_catalog_json = "~/.codex/model-catalogs/deepseek.json"
 
 [model_providers.custom]
 name = "codex-deepseek"
 base_url = "http://127.0.0.1:11435"
 wire_api = "responses"
 requires_openai_auth = true
+stream_idle_timeout_ms = 1800000
 ```
+
+| 新增项 | 说明 |
+|--------|------|
+| `model_context_window` | 告知 Codex 上下文窗口大小，正确触发 compaction |
+| `model_supports_reasoning_summaries` | 声明模型支持推理 |
+| `model_reasoning_summary = "none"` | DeepSeek 原生返回 reasoning_content，无需 Codex 额外请求摘要 |
+| `stream_idle_timeout_ms` | 流式空闲超时 30 分钟，防止 DeepSeek V4 长思考时 Codex 断连 |
+| `model_catalog_json` | 指向模型目录 JSON，彻底解决 "model metadata not found" 警告 |
+
+> **注意：** 代理启动时会自动生成 `codex-deepseek-catalog.json`，将其复制到 `~/.codex/model-catalogs/` 并配置 `model_catalog_json` 路径即可。
 
 > **注意：** Codex 要求 `~/.codex/auth.json` 中的 `OPENAI_API_KEY` 非空才能通过客户端校验，但实际的上游 API 认证由本代理的 `.env` 处理 — 所以 `auth.json` 中填写任意占位值即可。
 
@@ -162,6 +177,40 @@ requires_openai_auth = true
 ./start.sh   # 启动代理服务
 ./test.sh    # 运行单元测试
 ```
+
+## 排障
+
+### "Model metadata not found" 警告
+
+Codex 内置模型注册表不包含 DeepSeek 模型信息。需要创建模型目录 JSON 并在 config.toml 中引用。
+
+**步骤 1：** 代理启动时会在项目目录自动生成 `codex-deepseek-catalog.json`。将其复制到 Codex 目录：
+
+```bash
+mkdir -p ~/.codex/model-catalogs
+cp codex-deepseek-catalog.json ~/.codex/model-catalogs/deepseek.json
+```
+
+**步骤 2：** 在 `~/.codex/config.toml` 根级别添加（非 provider 内部）：
+
+```toml
+model_catalog_json = "~/.codex/model-catalogs/deepseek.json"
+```
+
+> **注意：** `model_catalog_json` 必须在 config.toml 根级别，不能放在 `[model_providers.xxx]` 内部。Codex 0.141+ 中 `[model_properties]` 不生效。
+
+### 流式连接中断（DeepSeek V4 长思考）
+
+DeepSeek V4 推理阶段可能长时间无内容输出，Codex 默认流空闲超时较短会导致断连。在 provider 配置中加入：
+
+```toml
+[model_providers.custom]
+stream_idle_timeout_ms = 1800000   # 30 分钟
+```
+
+### 启动时代理打印推荐配置
+
+代理启动时会将推荐的 config.toml 补全项打印到 stderr，可直接复制使用。
 
 ## License
 

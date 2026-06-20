@@ -1,0 +1,16 @@
+[Unit]
+Description=codex-deepseek protocol translation proxy
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/codex-deepseek
+ExecStart=/opt/codex-deepseek/.venv/bin/python -m src.main
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

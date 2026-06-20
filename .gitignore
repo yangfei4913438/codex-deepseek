@@ -1,4 +1,6 @@
 .env
+deploy.sh
+codex-deepseek-catalog.json
 __pycache__/
 *.pyc
 .venv/

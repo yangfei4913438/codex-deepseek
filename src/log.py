@@ -56,5 +56,14 @@ def toks(
     print(f"{C['gray']}[TOKS]{C['reset']} {' '.join(parts)}", file=sys.stderr)
 
 
+def timing(ms: int) -> None:
+    sec = ms / 1000
+    if sec >= 1:
+        label = f"{sec:.1f}s"
+    else:
+        label = f"{ms}ms"
+    print(f"{C['gray']}[TIME]{C['reset']} {label}", file=sys.stderr)
+
+
 def header(msg: str) -> None:
     print(f"\n{C['bold']}{C['cyan']}=== {msg} ==={C['reset']}", file=sys.stderr)
