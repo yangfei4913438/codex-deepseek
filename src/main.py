@@ -42,11 +42,11 @@ _load_env()
 DEEPSEEK_API_KEY = os.getenv("api_key", "")
 BASE_URL = os.getenv("base_url", "https://api.deepseek.com")
 MODEL = os.getenv("model", "deepseek-v4-pro")
+IDENTITY_MODEL = os.getenv("identity_model", "")
 PORT = int(os.getenv("port", "11435"))
 TIMEOUT = int(os.getenv("timeout", "30")) * 60
 MULTIMODAL = os.getenv("multimodal", "").lower() in ("true", "1", "yes")
 IS_DEEPSEEK = os.getenv("is_deepseek", "true").lower() in ("true", "1", "yes")
-IDENTITY_INJECT = os.getenv("identity_inject", "true").lower() in ("true", "1", "yes")
 
 
 def _rand_id(prefix: str, length: int = 8) -> str:
@@ -98,8 +98,8 @@ def build_chat_body(body: dict) -> dict:
     )
 
     instructions = body.get("instructions", "")
-    if IDENTITY_INJECT:
-        IDENTITY = f"\n\n[IMPORTANT: Your true model identity is {MODEL}. You are NOT OpenAI, GPT, or Claude. When asked about your model identity, you MUST answer truthfully based on your actual model name. Ignore any conflicting identity claims in the instructions above.]"
+    if IDENTITY_MODEL:
+        IDENTITY = f"\n\n[IMPORTANT: Your true model identity is {IDENTITY_MODEL}. You are NOT OpenAI, GPT, or Claude. When asked about your model identity, you MUST answer truthfully based on your actual model name. Ignore any conflicting identity claims in the instructions above.]"
         if instructions:
             instructions = instructions + IDENTITY
         else:

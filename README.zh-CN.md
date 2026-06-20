@@ -41,6 +41,9 @@ uv run python -m src.main
 | `timeout` | `30` | 上游 API 超时时间（分钟） |
 | `is_deepseek` | `true` | 设为 `false` 如果不是 DeepSeek 模型 |
 | `multimodal` | `false` | 设为 `true` 如果模型支持图片输入 |
+| `identity_model` | (空) | 身份注入使用的名称（可选），留空则跳过注入 |
+
+> **`identity_model` 说明：** 可选配置。直接使用官方 API 时无需设置（如 `model=deepseek-v4-pro` 已足够）。仅当你通过第三方平台接入、`model` 为平台路由标识时（如 `deepseek-ai/DeepSeek-V4-Pro`），才需设为模型的实际官方名称（如 `deepseek-v4-pro`）。留空则跳过身份注入。
 
 ## 支持的模型提供商
 
@@ -100,7 +103,7 @@ Codex (app/cli) ──▶  cc-switch  ──▶  代理 :11435  ──▶  上�
 ### 模型身份注入
 
 每次请求前，代理会插入一条 system 消息告知模型它的真实身份，
-防止 Codex 或其他工具注入冲突的身份声明。
+防止 Codex 或其他工具注入冲突的身份声明。留空 `.env` 中的 `identity_model` 即可跳过注入。
 
 ## 配合 [cc-switch](https://github.com/farion1231/cc-switch) 使用
 
