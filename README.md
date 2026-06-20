@@ -43,9 +43,9 @@ The proxy listens at `http://127.0.0.1:11435`.
 | `timeout` | `30` | Upstream API timeout in minutes |
 | `is_deepseek` | `true` | Set to `false` if not using a DeepSeek model |
 | `multimodal` | `false` | Set to `true` if the model supports image inputs |
-| `identity_model` | (empty) | Model name for identity injection (optional), defaults to model |
+| `identity_model` | (empty) | Fill in official model name to enable identity injection, empty skips |
 
-> **`identity_model` note:** Optional. Not needed when using the official API directly (e.g. `model=deepseek-v4-pro`). Only set this when using a third-party platform where `model` is a routing identifier (e.g. `deepseek-ai/DeepSeek-V4-Pro`) — set it to the actual official model name (e.g. `deepseek-v4-pro`). Leave empty to skip identity injection.
+> **`identity_model` note:** Fill in the official model name to enable identity injection. Leave empty to skip. Whether using the official API or a third-party platform, you must set this to inject. Example: `deepseek-v4-pro` for both official API and third-party (when `model` is a routing identifier like `deepseek-ai/DeepSeek-V4-Pro`).
 
 ## Supported Providers
 
@@ -107,7 +107,7 @@ so the reasoning chain stays intact across function calls.
 
 A system message is prepended to every request telling the model its true identity,
 preventing conflicting identity claims from Codex or other tools.
-Leave `identity_model` empty in `.env` to skip injection.
+Set `identity_model` in `.env` to the model's official name to enable injection; leave empty to skip.
 
 ## Integration with [cc-switch](https://github.com/farion1231/cc-switch)
 
