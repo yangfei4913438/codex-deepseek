@@ -453,8 +453,8 @@ def _write_catalog_json():
         "models": [
             {
                 "slug": MODEL,
-                "display_name": f"DeepSeek {MODEL}" if IS_DEEPSEEK else MODEL,
-                "description": f"{MODEL} via codex-deepseek proxy",
+                "display_name": IDENTITY_MODEL or MODEL,
+                "description": f"{IDENTITY_MODEL or MODEL} via codex-deepseek proxy",
                 "visibility": "list",
                 "supported_in_api": True,
                 "priority": 10,
@@ -485,7 +485,7 @@ def _write_catalog_json():
                 "support_verbosity": False,
                 "default_verbosity": "medium",
                 "truncation_policy": {"mode": "tokens", "limit": 10000},
-                "base_instructions": f"You are a coding agent powered by {MODEL}.",
+                "base_instructions": f"You are a coding agent powered by {IDENTITY_MODEL or MODEL}.",
                 "cost": {"input": 0, "output": 0},
                 "release_date": "2025-01-01",
                 "last_updated": "2025-01-01",
